@@ -127,17 +127,17 @@ def main():
     ap.add_argument("--epochs", type=int, default=300)
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--batch", type=int, default=64)
-    ap.add_argument("--extra-data", default=None,
-                    help="Optional second dataset to merge with --data")
+    ap.add_argument("--extra-data", nargs="*", default=[],
+                    help="Additional datasets to merge (can list multiple)")
     args = ap.parse_args()
 
     d = np.load(args.data, allow_pickle=False)
     states_raw, actions = d["states"], d["actions"]
-    if args.extra_data:
-        d2 = np.load(args.extra_data, allow_pickle=False)
+    for extra in args.extra_data:
+        d2 = np.load(extra, allow_pickle=False)
         states_raw = np.concatenate([states_raw, d2["states"]], axis=0)
         actions    = np.concatenate([actions,    d2["actions"]], axis=0)
-        print(f"merged with {args.extra_data}")
+        print(f"merged with {extra}")
     print(f"raw states  : {states_raw.shape}")
     print(f"raw actions : {actions.shape}")
 
