@@ -129,6 +129,9 @@ def main():
     ap.add_argument("--batch", type=int, default=64)
     ap.add_argument("--extra-data", nargs="*", default=[],
                     help="Additional datasets to merge (can list multiple)")
+    ap.add_argument("--min-speed", type=float, default=0.0,
+                    help="Filter out samples where raw speed < this (m/s). "
+                         "Removes stuck frames that teach the bot to stop.")
     args = ap.parse_args()
 
     d = np.load(args.data, allow_pickle=False)
@@ -140,6 +143,14 @@ def main():
         print(f"merged with {extra}")
     print(f"raw states  : {states_raw.shape}")
     print(f"raw actions : {actions.shape}")
+
+    if args.min_speed > 0.0:
+        mask = states_raw[:, 0] >= args.min_speed
+        dropped = (~mask).sum()
+        states_raw = states_raw[mask]
+        actions = actions[mask]
+        print(f"filtered {dropped} stuck samples (speed < {args.min_speed} m/s) "
+              f"-> {len(states_raw)} remaining")
 
     inspect_dataset(states_raw, actions, tag=args.tag)
 
