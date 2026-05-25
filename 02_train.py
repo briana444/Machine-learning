@@ -132,6 +132,8 @@ def main():
     ap.add_argument("--min-speed", type=float, default=0.0,
                     help="Filter out samples where raw speed < this (m/s). "
                          "Removes stuck frames that teach the bot to stop.")
+    ap.add_argument("--seed", type=int, default=0,
+                    help="Random seed for weight init and train/val split.")
     args = ap.parse_args()
 
     d = np.load(args.data, allow_pickle=False)
@@ -162,7 +164,7 @@ def main():
     gradient_check()
 
     weights, tr_losses, va_losses = train(
-        X, Y, epochs=args.epochs, lr=args.lr, batch_size=args.batch)
+        X, Y, epochs=args.epochs, lr=args.lr, batch_size=args.batch, seed=args.seed)
 
     viz.plot_loss_curves(tr_losses, va_losses, out=f"fig_loss_{args.tag}.png")
     nn_mod.save(weights, f"nav_{args.tag}.npz")
