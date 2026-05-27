@@ -142,6 +142,10 @@ def main():
     ap.add_argument("--pretrain", default=None,
                     help="Path to existing weights to fine-tune from (e.g. nav_v7.npz). "
                          "Use a lower --lr (e.g. 3e-4) when fine-tuning.")
+    ap.add_argument("--smooth-actions", type=float, default=0.0,
+                    help="Apply EMA smoothing to training actions before fitting. "
+                         "Fixes discrete WASD keyboard inputs (only -1/0/1). "
+                         "alpha=0.5 is a good start (0=no smoothing, 1=no change).")
     args = ap.parse_args()
 
     d = np.load(args.data, allow_pickle=False)
@@ -174,6 +178,16 @@ def main():
               f"-> {len(states_raw)} remaining")
 
     inspect_dataset(states_raw, actions, tag=args.tag)
+
+    if args.smooth_actions > 0.0:
+        alpha = args.smooth_actions
+        smoothed = actions.astype(np.float32).copy()
+        for i in range(1, len(smoothed)):
+            # smooth steering only — throttle stays discrete (full/off is correct)
+            smoothed[i, 1] = alpha * actions[i, 1] + (1.0 - alpha) * smoothed[i - 1, 1]
+        actions = smoothed
+        print(f"smoothed steering with alpha={alpha}  "
+              f"steering std: {actions[:,1].std():.3f}")
 
     X = normalize_states(states_raw)
     Y = actions.astype(np.float32)
