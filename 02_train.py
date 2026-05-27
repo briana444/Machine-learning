@@ -86,14 +86,19 @@ def inspect_dataset(states_raw, actions, tag: str):
     viz.plot_heading_vs_steering(states_raw, actions, out=f"fig_heading_{tag}.png")
 
 
-def train(X, Y, epochs=300, lr=1e-3, batch_size=64, val_frac=0.1, seed=0):
+def train(X, Y, epochs=300, lr=1e-3, batch_size=64, val_frac=0.1, seed=0,
+          pretrain=None):
     rng = np.random.default_rng(seed)
     N = len(X)
     perm = rng.permutation(N); n_val = max(1, int(N * val_frac))
     val_idx, tr_idx = perm[:n_val], perm[n_val:]
     Xtr, Ytr, Xva, Yva = X[tr_idx], Y[tr_idx], X[val_idx], Y[val_idx]
 
-    w = nn_mod.init_weights(seed=seed)
+    if pretrain:
+        w = nn_mod.load(pretrain)
+        print(f"warm-start from {pretrain}")
+    else:
+        w = nn_mod.init_weights(seed=seed)
     state = nn_mod.init_adam(w)
     train_losses, val_losses = [], []
     best_val = float("inf"); best = {k: v.copy() for k, v in w.items()}
@@ -134,6 +139,9 @@ def main():
                          "Removes stuck frames that teach the bot to stop.")
     ap.add_argument("--seed", type=int, default=0,
                     help="Random seed for weight init and train/val split.")
+    ap.add_argument("--pretrain", default=None,
+                    help="Path to existing weights to fine-tune from (e.g. nav_v7.npz). "
+                         "Use a lower --lr (e.g. 3e-4) when fine-tuning.")
     args = ap.parse_args()
 
     d = np.load(args.data, allow_pickle=False)
@@ -154,6 +162,17 @@ def main():
         print(f"filtered {dropped} stuck samples (speed < {args.min_speed} m/s) "
               f"-> {len(states_raw)} remaining")
 
+    # Remove frames where the human was truly stuck motionless against a wall:
+    # front ray < 3m AND speed < 1.5 m/s AND throttle < 0.1
+    # (cornering slowly near a wall is fine and must be kept)
+    confused_mask = ~((states_raw[:, 3] < 3.0) & (states_raw[:, 0] < 1.5) & (actions[:, 0] < 0.1))
+    confused_dropped = (~confused_mask).sum()
+    if confused_dropped > 0:
+        states_raw = states_raw[confused_mask]
+        actions = actions[confused_mask]
+        print(f"filtered {confused_dropped} wall-stuck frames "
+              f"-> {len(states_raw)} remaining")
+
     inspect_dataset(states_raw, actions, tag=args.tag)
 
     X = normalize_states(states_raw)
@@ -164,7 +183,8 @@ def main():
     gradient_check()
 
     weights, tr_losses, va_losses = train(
-        X, Y, epochs=args.epochs, lr=args.lr, batch_size=args.batch, seed=args.seed)
+        X, Y, epochs=args.epochs, lr=args.lr, batch_size=args.batch, seed=args.seed,
+        pretrain=args.pretrain)
 
     viz.plot_loss_curves(tr_losses, va_losses, out=f"fig_loss_{args.tag}.png")
     nn_mod.save(weights, f"nav_{args.tag}.npz")
