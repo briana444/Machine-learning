@@ -15,9 +15,9 @@ import numpy as np
 from drive2win import nn as nn_mod
 from drive2win.normalize import sensors_to_input, clip_action
 
-STUCK_FRAMES  = 20   # ~1 s at 20 Hz before triggering escape
-ESCAPE_FRAMES = 30   # ~1.5 s of reverse before handing back to net
-STUCK_SPEED   = 0.3  # m/s threshold
+STUCK_FRAMES  = 60   # ~3 s at 20 Hz before triggering escape
+ESCAPE_FRAMES = 25   # ~1.25 s of reverse before handing back to net
+STUCK_SPEED   = 0.1  # m/s — only trigger when truly stopped, not slowing for corners
 
 
 def make_policy(weights_path: str):
